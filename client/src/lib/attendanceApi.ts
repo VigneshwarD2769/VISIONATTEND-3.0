@@ -32,7 +32,7 @@ export type AttendanceApi = {
   login(identifier: string, password: string): Promise<Session>;
   getProfile(session: Session): Promise<UserProfile>;
   getStudentHome(session: Session): Promise<{ today: AttendanceRecord[]; percentage: number; enrolled: EnrollmentInfo }>;
-  getAttendance(session: Session): Promise<{ history: AttendanceRecord[]; subjects: typeof subjectSummaries; percentage: number }>;
+  getAttendance(session: Session): Promise<{ history: AttendanceRecord[]; subjects: typeof subjectSummaries; percentage: number; summary: { present: number; total: number; review: number } }>;
   getNotifications(session: Session): Promise<typeof notifications>;
   getEnrollment(session: Session): Promise<EnrollmentInfo>;
   advanceEnrollment(session: Session): Promise<EnrollmentInfo>;
@@ -91,7 +91,7 @@ const demoApi: AttendanceApi = {
   async getAttendance(session) {
     await delay();
     const dataset = getStudentDataset(session);
-    return { history: dataset.history, subjects: dataset.subjects, percentage: dataset.percentage };
+    return { history: dataset.history, subjects: dataset.subjects, percentage: dataset.percentage, summary: dataset.summary };
   },
 
   async getNotifications(session) {
@@ -171,7 +171,7 @@ export class FastApiAttendanceApi implements AttendanceApi {
   login(): Promise<Session> { return Promise.reject(this.unavailable()); }
   getProfile(): Promise<UserProfile> { return Promise.reject(this.unavailable()); }
   getStudentHome(): Promise<{ today: AttendanceRecord[]; percentage: number; enrolled: EnrollmentInfo }> { return Promise.reject(this.unavailable()); }
-  getAttendance(): Promise<{ history: AttendanceRecord[]; subjects: typeof subjectSummaries; percentage: number }> { return Promise.reject(this.unavailable()); }
+  getAttendance(): Promise<{ history: AttendanceRecord[]; subjects: typeof subjectSummaries; percentage: number; summary: { present: number; total: number; review: number } }> { return Promise.reject(this.unavailable()); }
   getNotifications(): Promise<typeof notifications> { return Promise.reject(this.unavailable()); }
   getEnrollment(): Promise<EnrollmentInfo> { return Promise.reject(this.unavailable()); }
   advanceEnrollment(): Promise<EnrollmentInfo> { return Promise.reject(this.unavailable()); }

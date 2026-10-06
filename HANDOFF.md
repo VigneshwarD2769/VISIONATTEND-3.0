@@ -50,6 +50,8 @@ Before activation, verify the real FastAPI contract for:
 
 The final integration must use authenticated HTTPS APIs only. The app must not connect directly to PostgreSQL, create an attendance database, calculate conflicting official percentages, store face embeddings/templates, expose raw AI scores, or let one student view another student’s data.
 
+The supplied backend archive has a schema mismatch: `period_attendance.py` reads `students.register_number` and `students.batch`, but `database/models.py` does not define those columns. It also contains no database dump or migration. See [BACKEND_SCHEMA_AUDIT.md](BACKEND_SCHEMA_AUDIT.md) before activating the real API.
+
 ## Required backend configuration before production integration
 
 Provide the final API base URL, OpenAPI/contract details, authentication and refresh/session scheme, role claims for faculty and management, CORS policy, enrollment multipart upload format, upload retry/idempotency semantics, staff attendance-edit permissions, and the safe user-facing status/error payloads.

@@ -269,6 +269,7 @@ export type StudentDataset = {
   history: AttendanceRecord[];
   subjects: SubjectSummary[];
   percentage: number;
+  summary: { present: number; total: number; review: number };
   notifications: AppNotification[];
   evidence: Record<string, VerificationEvidence>;
   enrollment: EnrollmentInfo;
@@ -281,6 +282,7 @@ function buildStudentDataset({ registerNumber, name, email, percentage, absentIn
     id: `${prefix}-${record.id}`,
     status: index === absentIndex ? "absent" as const : record.status,
   }));
+  const summary = { present: history.filter((record) => record.status === "present").length, total: history.length, review: history.filter((record) => record.status === "absent").length };
   const profile: UserProfile = { name, registerNumber, email, course: "B.Sc Computer Science", yearSection: "3rd year · 2nd batch", batch: "2024–2027", role: "student", enrollmentStatus: enrollmentStep >= 5 ? "submitted" : "in-progress" };
   const subjects = subjectSummaries.map((subject, index) => {
     const present = Math.max(0, subject.present - (index + absentIndex) % 3);
@@ -294,7 +296,7 @@ function buildStudentDataset({ registerNumber, name, email, percentage, absentIn
     return [scopedId, { ...item, attendanceId: scopedId }];
   }));
   const enrollment: EnrollmentInfo = { ...enrollmentInfo, currentStep: enrollmentStep, detail: `${enrollmentStep} of 5 guided captures are ready for backend review.`, state: enrollmentStep >= 5 ? "submitted" : "in-progress", label: enrollmentStep >= 5 ? "Submitted for backend review" : "Face enrollment in progress" };
-  return { profile, today: history.slice(0, 5), history, subjects, percentage, notifications: scopedNotifications, evidence, enrollment };
+  return { profile, today: history.slice(0, 5), history, subjects, percentage, summary, notifications: scopedNotifications, evidence, enrollment };
 }
 
 export const studentDataById: Record<string, StudentDataset> = {
