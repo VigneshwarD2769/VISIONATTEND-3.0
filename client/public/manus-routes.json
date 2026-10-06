@@ -1,0 +1,14 @@
+{
+  "routes": [
+    { "path": "/", "title": "VISIONATTEND login" },
+    { "path": "/login", "title": "VISIONATTEND login" },
+    { "path": "/student", "title": "Student dashboard" },
+    { "path": "/student/attendance", "title": "Attendance" },
+    { "path": "/student/enrollment", "title": "Face enrollment" },
+    { "path": "/student/notifications", "title": "Notifications" },
+    { "path": "/student/profile", "title": "Student profile" },
+    { "path": "/staff", "title": "Staff dashboard" },
+    { "path": "/staff/attendance", "title": "Attendance workspace" },
+    { "path": "/404", "title": "Not found" }
+  ]
+}

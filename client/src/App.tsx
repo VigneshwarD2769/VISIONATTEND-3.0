@@ -1,42 +1,177 @@
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { Link, Redirect, Route, Switch, useLocation } from "wouter";
+import {
+  Activity,
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  BadgeCheck,
+  Bell,
+  BookOpen,
+  Building2,
+  CalendarDays,
+  CalendarClock,
+  Camera,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  CircleAlert,
+  CircleDashed,
+  ClipboardCheck,
+  Clock3,
+  Download,
+  Eye,
+  FileCheck2,
+  Filter,
+  GraduationCap,
+  History,
+  Info,
+  LayoutDashboard,
+  LockKeyhole,
+  LogOut,
+  MapPin,
+  Menu,
+  Pencil,
+  Radio,
+  RefreshCw,
+  RotateCcw,
+  Save,
+  ScanFace,
+  Search,
+  Send,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  Timer,
+  UploadCloud,
+  UserRound,
+  Users,
+  WifiOff,
+  X,
+} from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
-import ErrorBoundary from "./components/ErrorBoundary";
-import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import { ThemeProvider } from "@/contexts/ThemeContext";
+import { SessionProvider, useSession } from "@/contexts/SessionContext";
+import { attendanceApi } from "@/lib/attendanceApi";
+import {
+  enrollmentInfo as initialEnrollment,
+  historyRecords,
+  notifications as demoNotifications,
+  subjectSummaries,
+  todayPeriods,
+  type AttendanceRecord,
+  type AttendanceStatus,
+  type EnrollmentInfo,
+  type Role,
+} from "@/lib/demoData";
 
-function Router() {
-  // make sure to consider if you need authentication for certain routes
-  return (
-    <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
-  );
+const roleLabels: Record<Role, string> = { student: "Student", faculty: "Faculty", management: "Management" };
+const navForRole = (role: Role) => role === "student"
+  ? [
+      { href: "/student", label: "Overview", icon: LayoutDashboard },
+      { href: "/student/attendance", label: "Attendance", icon: ClipboardCheck },
+      { href: "/student/enrollment", label: "Face enrollment", icon: ScanFace },
+      { href: "/student/notifications", label: "Notifications", icon: Bell },
+      { href: "/student/profile", label: "My profile", icon: UserRound },
+    ]
+  : [
+      { href: "/staff", label: "Overview", icon: LayoutDashboard },
+      { href: "/staff/attendance", label: "Attendance workspace", icon: ClipboardCheck },
+    ];
+
+function AppLogo({ light = false }: { light?: boolean }) {
+  return <div className="brand-lockup"><span className="brand-mark"><span /></span><span className="brand-word" style={light ? { color: "#fffaf4" } : undefined}>VISION<em>ATTEND</em></span></div>;
 }
 
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
-function App() {
-  return (
-    <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
-  );
+function DemoBanner() {
+  return <div className="demo-banner"><span className="demo-pill">Demo mode</span><span><strong>Sample data only.</strong> The backend API is not connected in this preview, so no official attendance or biometric image is being processed.</span></div>;
 }
 
+function StatusChip({ status, label }: { status: string; label?: string }) {
+  const icon = status === "present" || status === "approved" ? <Check size={11} /> : status === "absent" || status === "rejected" ? <X size={11} /> : status === "late" || status === "validation" ? <Clock3 size={11} /> : status === "in-progress" || status === "submitted" ? <Activity size={11} /> : <CircleDashed size={11} />;
+  return <span className={`status-chip ${status}`}>{icon}{label ?? status.replace("-", " ")}</span>;
+}
+
+function Topbar({ eyebrow, title, subtitle, action }: { eyebrow: string; title: string; subtitle?: string; action?: ReactNode }) {
+  return <div className="topbar"><div><div className="topbar-kicker">{eyebrow}</div><h1 className="page-title">{title}</h1>{subtitle && <p className="page-subtitle">{subtitle}</p>}</div><div className="topbar-actions"><div className="date-stamp"><CalendarDays size={14} /> Tuesday · 06 Oct 2026</div>{action}</div></div>;
+}
+
+function AppShell({ children }: { children: ReactNode }) {
+  const { session, logout } = useSession();
+  const [location] = useLocation();
+  if (!session) return <Redirect to="/login" />;
+  const nav = navForRole(session.role);
+  return <div className="app-shell"><aside className="side-rail"><AppLogo light /><div className="brand-caption">Academic operations</div><div className="rail-section-label">Workspace</div><nav className="nav-list">{nav.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={`nav-item ${location === href ? "active" : ""}`}><Icon />{label}</Link>)}</nav><div className="rail-footer"><div className="rail-user"><div className="avatar dark">{session.shortName}</div><div><div className="rail-user-name">{session.name}</div><div className="rail-user-role">{roleLabels[session.role]} · Demo</div></div></div><button className="logout-button" onClick={logout}><LogOut size={15} /> Sign out</button></div></aside><main className="main-shell"><DemoBanner /><div className="content-wrap">{children}</div><nav className="mobile-nav">{nav.slice(0, 4).map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={location === href ? "active" : ""}><Icon />{label}</Link>)}<button className="logout-button" style={{ width: "auto", margin: 0, padding: "5px 8px", display: "grid", justifyItems: "center", gap: 3, color: "#9a9288", fontSize: 9 }} onClick={logout}><LogOut size={17} />Sign out</button></nav></main></div>;
+}
+
+function LoginPage() {
+  const [, setLocation] = useLocation();
+  const { login, isLoading, error, clearError } = useSession();
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    clearError();
+    try {
+      const session = await login(identifier, password);
+      setLocation(session.role === "student" ? "/student" : "/staff");
+    } catch { /* surfaced by context */ }
+  }
+
+  const demoRoles = [
+    { role: "student" as const, label: "Student preview", id: "QC2024A001", password: "student123", icon: GraduationCap, copy: "View a personal attendance record" },
+    { role: "faculty" as const, label: "Faculty preview", id: "FAC-104", password: "faculty123", icon: BookOpen, copy: "Edit attendance for assigned classes" },
+    { role: "management" as const, label: "Management preview", id: "MGT-001", password: "manage123", icon: Building2, copy: "Monitor and edit across classes" },
+  ];
+  return <div className="login-page"><section className="login-aside"><AppLogo light /><div className="login-copy"><div className="login-kicker"><Sparkles size={14} /> Quantum Crew · VISIONATTEND 3.0</div><h1>Attendance, <span>clearly accounted for.</span></h1><p>A calm, evidence-aware portal for students, faculty, and academic operations teams. Sign in to continue to your workspace.</p></div><div className="login-foot"><span className="login-badge">Preview environment ready</span><span>v3.0 · 06.10.26</span></div></section><section className="login-panel"><div className="login-card"><div className="login-card-header"><span className="demo-pill">Demo access</span><h2>Sign in to VISIONATTEND</h2><p>Use your register number or staff ID. Student data is always scoped to the signed-in account.</p></div><form className="login-form" onSubmit={submit}><div className="form-field"><label htmlFor="identifier">Register number / staff ID</label><div className="input-wrap"><UserRound size={16} /><input id="identifier" className="input-control" value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="e.g. QC2024A001" autoComplete="username" /></div></div><div className="form-field"><label htmlFor="password">Password</label><div className="input-wrap"><LockKeyhole size={16} /><input id="password" className="input-control" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" autoComplete="current-password" /></div></div>{error && <div className="form-error"><CircleAlert size={15} />{error}</div>}<button className="btn btn-primary login-submit" type="submit" disabled={isLoading}>{isLoading ? <><RefreshCw size={15} className="animate-spin" /> Signing you in…</> : <>Continue to workspace <ArrowRight size={15} /></>}</button></form><div className="login-divider">or use a preview role</div><div className="demo-roles">{demoRoles.map(({ role, label, id, password: demoPassword, icon: Icon, copy }) => <button key={role} className="demo-role" onClick={() => { setIdentifier(id); setPassword(demoPassword); clearError(); }}><span className="demo-role-main"><span className="demo-role-icon"><Icon size={14} /></span><span><strong>{label}</strong><span>{copy}</span></span></span><ChevronRight size={15} /></button>)}</div></div></section></div>;
+}
+
+function StudentDashboard() {
+  const { session } = useSession();
+  const [location, setLocation] = useLocation();
+  const [homeData, setHomeData] = useState<{ today: AttendanceRecord[]; percentage: number; enrolled: EnrollmentInfo }>({ today: todayPeriods, percentage: 92, enrolled: initialEnrollment });
+  useEffect(() => { if (session) attendanceApi.getStudentHome(session).then(setHomeData).catch(() => undefined); }, [session]);
+  const present = homeData.today.filter((item) => item.status === "present").length;
+  const absent = homeData.today.filter((item) => item.status === "absent").length;
+  return <><Topbar eyebrow="Student overview" title={`Good morning, ${session?.name.split(" ")[0]}.`} subtitle="Your attendance is up to date. Here’s the signal from today’s record." action={<button className="icon-button" aria-label="Notifications" onClick={() => setLocation("/student/notifications")}><Bell size={17} /></button>} /><div className="overview-grid"><section className="surface hero-card"><div className="hero-eyebrow"><ShieldCheck size={14} /> Personal attendance record</div><h2>Stay informed before the next mark.</h2><p>Review each period, its evidence status, and the official percentage returned for your account.</p><div className="hero-meta"><span>Current standing</span><strong>Good · above 85% threshold</strong></div></section><section className="surface score-card"><div className="score-label">Official attendance</div><div className="score-layout"><div className="score-ring"><div className="score-ring-inner"><div><div className="score-ring-value tabular">{homeData.percentage}%</div><div className="score-ring-caption">overall</div></div></div></div><div className="score-note"><strong>On track</strong>Attendance percentage is shown as returned by the backend.</div></div><Link href="/student/attendance" className="small-link">View full record <ArrowRight size={13} /></Link></section></div><div className="stats-grid"><MetricCard icon={<CheckCircle2 size={15} />} label="Present today" value={present} foot="Confirmed marks" tone="positive" /><MetricCard icon={<CircleAlert size={15} />} label="Absent today" value={absent} foot="Needs your attention" tone="warning" /><MetricCard icon={<CalendarClock size={15} />} label="Total periods" value={homeData.today.length} foot="Scheduled today" /></div><div className="dashboard-grid"><section className="surface surface-pad"><div className="section-heading"><div><h2>Today’s periods</h2><p>06 October 2026 · 5 scheduled periods</p></div><Link className="small-link" href="/student/attendance">See history <ChevronRight size={13} /></Link></div><div className="period-list">{homeData.today.map((item) => <PeriodRow key={item.id} item={item} />)}</div></section><div className="surface surface-pad"><div className="section-heading"><div><h2>Enrollment signal</h2><p>Face self-enrollment status</p></div><StatusChip status={homeData.enrolled.state} label={homeData.enrolled.state === "in-progress" ? "In progress" : homeData.enrolled.label} /></div><div className="progress-track"><div className="progress-fill" style={{ width: `${(homeData.enrolled.currentStep / homeData.enrolled.totalSteps) * 100}%` }} /></div><div style={{ display: "flex", justifyContent: "space-between", marginTop: 9, color: "#92897e", fontSize: 10 }}><span>{homeData.enrolled.currentStep} of {homeData.enrolled.totalSteps} guided captures</span><span>{homeData.enrolled.lastUpdated}</span></div><p className="page-subtitle" style={{ marginTop: 17 }}>{homeData.enrolled.detail}</p><Link className="btn btn-secondary" style={{ marginTop: 15 }} href="/student/enrollment"><ScanFace size={14} /> Continue enrollment</Link><div style={{ marginTop: 22 }}><div className="section-heading" style={{ marginBottom: 11 }}><div><h3>Recent alerts</h3></div><Link className="small-link" href="/student/notifications">All <ChevronRight size={12} /></Link></div><NoticeList items={demoNotifications.slice(0, 2)} /></div></div></div></>;
+}
+
+function MetricCard({ icon, label, value, foot, tone }: { icon: ReactNode; label: string; value: string | number; foot: string; tone?: "positive" | "warning" }) { return <section className="surface stat-card"><div className="stat-top"><span>{label}</span><span className="stat-icon">{icon}</span></div><div className="stat-value tabular">{value}</div><div className={`stat-foot ${tone ?? ""}`}>{foot}</div></section>; }
+function PeriodRow({ item }: { item: AttendanceRecord }) { return <div className="period-row"><div className="period-number">{item.period}</div><div><div className="period-name">{item.subject}</div><div className="period-meta">{item.time} · {item.room}</div></div><StatusChip status={item.status} /></div>; }
+function NoticeList({ items }: { items: typeof demoNotifications }) { return <div className="notice-list">{items.map((item) => <div className="notice-item" key={item.id}><span className={`notice-dot ${item.tone}`} /><div style={{ minWidth: 0 }}><div className="notice-title">{item.title}</div><div className="notice-body">{item.body}</div></div><span className="notice-time">{item.time}</span></div>)}</div>; }
+
+function AttendancePage() {
+  const { session } = useSession();
+  const [selected, setSelected] = useState<AttendanceRecord | null>(null);
+  const [subjectFilter, setSubjectFilter] = useState("all");
+  const [range, setRange] = useState("all");
+  const [attendance, setAttendance] = useState(historyRecords);
+  useEffect(() => { if (session) attendanceApi.getAttendance(session).then((data) => setAttendance(data.history)).catch(() => undefined); }, [session]);
+  const filtered = useMemo(() => attendance.filter((item) => subjectFilter === "all" || item.code === subjectFilter).filter((item) => range === "all" || (range === "today" ? item.date === "2026-10-06" : item.date >= "2026-10-01")), [attendance, range, subjectFilter]);
+  const grouped = filtered.reduce<Record<string, AttendanceRecord[]>>((acc, item) => { const month = item.date.startsWith("2026-10") ? "October 2026" : "September 2026"; (acc[month] ??= []).push(item); return acc; }, {});
+  return <><Topbar eyebrow="Student attendance" title="Your attendance record" subtitle="Every status below is read-only and shown as returned by the attendance service." action={<button className="btn btn-secondary"><Download size={14} /> Export view</button>} /><div className="stats-grid"><MetricCard icon={<CheckCircle2 size={15} />} label="Overall" value="92%" foot="Provider-returned percentage" tone="positive" /><MetricCard icon={<History size={15} />} label="This month" value="18 / 20" foot="Present periods" /><MetricCard icon={<CircleAlert size={15} />} label="Review needed" value="1" foot="Absent mark this week" tone="warning" /></div><div className="two-column"><section className="surface surface-pad"><div className="section-heading"><div><h2>Period history</h2><p>Month-grouped attendance records</p></div><span className="demo-pill">Read only</span></div><div className="filter-row"><div className="select-wrap"><select className="select-control" value={range} onChange={(event) => setRange(event.target.value)}><option value="all">All dates</option><option value="today">Today</option><option value="month">This month</option></select><ChevronDown size={13} /></div><div className="select-wrap"><select className="select-control" value={subjectFilter} onChange={(event) => setSubjectFilter(event.target.value)}><option value="all">All subjects</option>{subjectSummaries.map((item) => <option key={item.code} value={item.code}>{item.code}</option>)}</select><ChevronDown size={13} /></div><span style={{ marginLeft: "auto", color: "#a0998f", fontSize: 10 }}>{filtered.length} records</span></div><div className="surface attendance-list">{Object.entries(grouped).map(([month, records]) => <div key={month}><div className="attendance-group-label">{month}</div>{records.map((item) => <div className="attendance-line" key={item.id}><div className="att-date">{new Date(`${item.date}T12:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}<small>{item.period} · {item.code}</small></div><div className="att-subject">{item.subject}<small>{item.room} · {item.markedBy}</small></div><div className="att-time">{item.time}</div><StatusChip status={item.status} /><button className="list-icon-button" aria-label="View evidence" onClick={() => setSelected(item)}><Eye size={15} /></button></div>)}</div>)}</div></section><section className="surface surface-pad"><div className="section-heading"><div><h2>Subject summary</h2><p>Official summaries from the backend</p></div><Info size={16} color="#aaa197" /></div><table className="summary-table"><thead><tr><th>Subject</th><th>Present</th><th>Mark</th></tr></thead><tbody>{subjectSummaries.map((item) => <tr key={item.code}><td><span className="summary-subject">{item.subject}</span><span className="summary-code">{item.code}</span></td><td className="tabular">{item.present}/{item.total}</td><td><div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}><div className="progress-track" style={{ width: 70 }}><div className={`progress-fill ${item.tone}`} style={{ width: `${item.percentage}%` }} /></div><strong className="tabular" style={{ fontSize: 11 }}>{item.percentage}%</strong></div></td></tr>)}</tbody></table><div style={{ marginTop: 19, padding: 13, borderRadius: 11, background: "#fbf4ec", color: "#896d59", fontSize: 10, lineHeight: 1.5 }}><ShieldCheck size={14} style={{ verticalAlign: "middle", marginRight: 6 }} />Official percentages are not recalculated in the app.</div></section></div>{selected && <EvidenceModal record={selected} onClose={() => setSelected(null)} />}</>;
+}
+
+function EvidenceModal({ record, onClose }: { record: AttendanceRecord; onClose: () => void }) { const { session } = useSession(); const [evidence, setEvidence] = useState<Awaited<ReturnType<typeof attendanceApi.getEvidence>>>(null); useEffect(() => { if (session) attendanceApi.getEvidence(session, record.id).then(setEvidence).catch(() => setEvidence(null)); }, [record.id, session]); return <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card"><div className="modal-header"><div><h3>{record.subject} · verification detail</h3><p>{record.date} · {record.time} · {record.status === "absent" ? "Attendance was marked absent" : "Attendance status record"}</p></div><button className="modal-close" onClick={onClose} aria-label="Close"><X size={18} /></button></div>{evidence ? <><div className="evidence-rail"><div className="evidence-node"><div className="evidence-icon"><ScanFace size={16} /></div><div className="evidence-label">AI result</div><StatusChip status={evidence.aiResult === "Verified" ? "present" : "unmarked"} label={evidence.aiResult} /></div><div className="evidence-line" /><div className="evidence-node"><div className={`evidence-icon ${evidence.rfidResult !== "Verified" ? "muted" : ""}`}><Radio size={16} /></div><div className="evidence-label">RFID evidence</div><StatusChip status={evidence.rfidResult === "Verified" ? "present" : "unmarked"} label={evidence.rfidResult} /></div><div className="evidence-line" /><div className="evidence-node"><div className="evidence-icon"><BadgeCheck size={16} /></div><div className="evidence-label">Final status</div><StatusChip status={record.status} label={evidence.finalStatus} /></div></div><div style={{ padding: 13, borderRadius: 11, background: "#fbf8f3", color: "#756d63", fontSize: 11, lineHeight: 1.55 }}>{evidence.note}</div><div style={{ display: "flex", justifyContent: "space-between", marginTop: 16, color: "#9c9389", fontSize: 10 }}><span>Recorded</span><strong style={{ color: "#605950" }}>{evidence.recordedAt}</strong></div></> : <div className="empty-state"><WifiOff size={26} /><strong>Evidence not available</strong><p>The backend did not attach a verification evidence object to this record.</p></div>}</div></div>; }
+
+function EnrollmentPage() { const { session } = useSession(); const [enrollment, setEnrollment] = useState<EnrollmentInfo>(initialEnrollment); const [busy, setBusy] = useState(false); const [captured, setCaptured] = useState(false); useEffect(() => { if (session) attendanceApi.getEnrollment(session).then(setEnrollment).catch(() => undefined); }, [session]); const pose = ["Front", "Slight left", "Slight right", "Slight upward tilt", "Slight downward tilt"][Math.max(0, enrollment.currentStep - 1)]; async function capture() { if (enrollment.currentStep >= 5) return; setCaptured(true); setBusy(true); try { const updated = await attendanceApi.advanceEnrollment(session!); setEnrollment(updated); } finally { setBusy(false); setCaptured(false); } } return <><Topbar eyebrow="Student enrollment" title="Face self-enrollment" subtitle="Five guided captures help the backend verify your identity. No face template or embedding is visible in this app." action={<span className="demo-pill">Camera demo</span>} /><div className="enrollment-layout"><section className="surface surface-pad"><div className="stepper">{["Front", "Left", "Right", "Up", "Down"].map((label, index) => <div key={label} className={`step-item ${index + 1 < enrollment.currentStep ? "complete" : ""} ${index + 1 === enrollment.currentStep ? "active" : ""}`}><div className="step-circle">{index + 1 < enrollment.currentStep ? <Check size={13} /> : index + 1}</div><span>{label}</span></div>)}</div><div className="camera-stage"><div className="capture-status">Camera guidance active</div><div className="face-oval"><ScanFace /></div><div className="camera-guide">Keep your face inside the guide · even lighting</div></div><h2 className="enrollment-instruction">Look {pose.toLowerCase()}</h2><p className="enrollment-helper">Keep your eyes open, remove anything covering your face, and hold still for a moment. Basic guidance only — the backend makes the final acceptance decision.</p><div className="enrollment-actions"><button className="btn btn-primary" onClick={capture} disabled={busy || enrollment.currentStep >= 5}>{busy ? <><RefreshCw size={14} className="animate-spin" /> Processing…</> : enrollment.currentStep >= 5 ? <><CheckCircle2 size={14} /> All captures ready</> : <><Camera size={14} /> {captured ? "Captured" : "Capture this step"}</>}</button><button className="btn btn-secondary" disabled={busy || enrollment.currentStep === 1} onClick={() => setEnrollment((current) => ({ ...current, currentStep: Math.max(1, current.currentStep - 1), detail: "Ready to retake the previous guided capture." }))}><RotateCcw size={14} /> Retake</button></div></section><aside className="status-panel"><div className="status-panel-card accent"><div className="status-panel-label">Current status</div><div className="status-panel-title">{enrollment.label}</div><p className="status-panel-copy">{enrollment.detail}</p><div className="progress-track" style={{ marginTop: 15 }}><div className="progress-fill" style={{ width: `${(enrollment.currentStep / enrollment.totalSteps) * 100}%` }} /></div><div className="status-detail-row"><span>Progress</span><strong>{enrollment.currentStep} / {enrollment.totalSteps}</strong></div><div className="status-detail-row"><span>Last updated</span><strong>{enrollment.lastUpdated}</strong></div></div><div className="status-panel-card"><div className="status-panel-label">Guidance</div><div style={{ display: "grid", gap: 10, marginTop: 13 }}>{["Use a well-lit space", "Keep the camera at eye level", "Follow one pose at a time", "Images are cleared after upload"].map((item) => <div key={item} style={{ display: "flex", alignItems: "center", gap: 8, color: "#756d63", fontSize: 11 }}><CheckCircle2 size={14} color="#65a879" />{item}</div>)}</div></div><div className="status-panel-card"><div className="status-panel-label">Eligibility check</div><p className="status-panel-copy" style={{ marginTop: 10 }}>{enrollment.eligibilityNote}</p><div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 13, color: "#4e8b5f", fontSize: 11, fontWeight: 700 }}><ShieldCheck size={15} /> Eligible for enrollment</div></div></aside></div></>; }
+
+function NotificationsPage() { const { session } = useSession(); const [items, setItems] = useState(demoNotifications); useEffect(() => { if (session) attendanceApi.getNotifications(session).then(setItems).catch(() => undefined); }, [session]); return <><Topbar eyebrow="Student notifications" title="Notifications" subtitle="Attendance updates and enrollment signals, newest first." action={<button className="btn btn-secondary" onClick={() => setItems((current) => current.map((item) => ({ ...item, unread: false })))}><Check size={14} /> Mark all read</button>} /><div className="surface surface-pad" style={{ maxWidth: 820 }}><div className="section-heading"><div><h2>Recent updates</h2><p>{items.filter((item) => item.unread).length} unread notifications</p></div><Bell size={18} color="#b5aca1" /></div><div className="notice-list">{items.map((item) => <div className="notice-item" key={item.id} style={{ padding: "15px 0" }}><span className={`notice-dot ${item.tone}`} /><div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 7 }}><div className="notice-title">{item.title}</div>{item.unread && <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#e65f2b" }} />}</div><div className="notice-body">{item.body}</div>{item.attendanceId && <Link href="/student/attendance" className="small-link" style={{ marginTop: 9 }}>Open attendance record <ArrowRight size={12} /></Link>}</div><span className="notice-time">{item.time}</span></div>)}</div></div></>; }
+
+function ProfilePage() { const { session } = useSession(); return <><Topbar eyebrow="Student profile" title="My profile" subtitle="Identity and academic details are read-only in the student portal." action={<span className="demo-pill">Read only</span>} /><div className="two-column"><section className="surface surface-pad"><div className="profile-header"><div className="profile-avatar">MR</div><div><h2 className="profile-title">Maya Rao</h2><div className="profile-meta">QC2024A001 · B.Tech Computer Science</div></div></div><div className="profile-grid"><ReadOnlyField label="Full name" value="Maya Rao" /><ReadOnlyField label="Register number" value="QC2024A001" helper="Student ID" /><ReadOnlyField label="Course" value="B.Tech Computer Science" /><ReadOnlyField label="Year / section" value="Year 2 · Section A" /><ReadOnlyField label="Batch" value="2024–2028" /><ReadOnlyField label="Email" value="maya.rao@quantumcrew.edu" /></div></section><section className="surface surface-pad"><div className="section-heading"><div><h2>Access & privacy</h2><p>Your app permissions are scoped by role.</p></div><LockKeyhole size={17} color="#aaa197" /></div><div style={{ display: "grid", gap: 10 }}><AccessRow icon={<Eye size={15} />} title="View your attendance" detail="Allowed · personal records only" good /><AccessRow icon={<Pencil size={15} />} title="Edit attendance" detail="Not available to students" /><AccessRow icon={<ScanFace size={15} />} title="Manage enrollment" detail="Guided capture only · backend decides" good /><AccessRow icon={<ShieldCheck size={15} />} title="Verification evidence" detail="Read-only status returned by backend" good /></div><div style={{ marginTop: 18, padding: 12, borderRadius: 10, background: "#f5f0e9", color: "#847a70", fontSize: 10, lineHeight: 1.5 }}><Info size={13} style={{ verticalAlign: "middle", marginRight: 5 }} />The app never stores your password, face embeddings, or official face template.</div></section></div></>; }
+function ReadOnlyField({ label, value, helper }: { label: string; value: string; helper?: string }) { return <div><span className="field-label">{label}</span><div className="field-value">{value}</div>{helper && <div className="field-helper">{helper}</div>}</div>; }
+function AccessRow({ icon, title, detail, good }: { icon: ReactNode; title: string; detail: string; good?: boolean }) { return <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 0", borderBottom: "1px solid #f0ebe4" }}><span style={{ display: "grid", placeItems: "center", width: 29, height: 29, borderRadius: 9, background: good ? "#e6f2e8" : "#efede8", color: good ? "#4e8e60" : "#898178" }}>{icon}</span><div style={{ flex: 1 }}><div style={{ fontSize: 11, fontWeight: 700 }}>{title}</div><div style={{ marginTop: 3, color: "#948b81", fontSize: 10 }}>{detail}</div></div>{good ? <CheckCircle2 size={14} color="#66a979" /> : <LockKeyhole size={13} color="#aaa198" />}</div>; }
+
+function StaffDashboard() { const { session } = useSession(); const [overview, setOverview] = useState<Awaited<ReturnType<typeof attendanceApi.getStaffOverview>> | null>(null); const [, setLocation] = useLocation(); useEffect(() => { if (session) attendanceApi.getStaffOverview(session).then(setOverview).catch(() => undefined); }, [session]); const classes = overview?.classes ?? []; return <><Topbar eyebrow={`${roleLabels[session?.role ?? "faculty"]} workspace`} title="Attendance operations" subtitle="Review the signal across today’s classes, then open a roster to edit attendance marks." action={<button className="btn btn-primary" onClick={() => setLocation("/staff/attendance")}><ClipboardCheck size={14} /> Open workspace</button>} /><section className="surface staff-hero"><div><span className="demo-pill">Staff permissions active</span><h2>Make the record accurate.</h2><p>Attendance status can be edited by faculty and management. AI/RFID evidence and official calculations remain backend-owned.</p></div><div style={{ display: "flex", alignItems: "center", gap: 9, color: "#cfc7bc", fontSize: 11 }}><ShieldCheck size={16} color="#e88a5e" /> Changes are auditable</div></section><div className="staff-grid"><MetricCard icon={<Users size={15} />} label="Students in view" value={overview?.totalStudents ?? "—"} foot="Across today’s classes" /><MetricCard icon={<ClipboardCheck size={15} />} label="Marks captured" value={overview?.todayMarked ?? "—"} foot="Present, absent or late" tone="positive" /><MetricCard icon={<CircleAlert size={15} />} label="Needs review" value={overview?.needsReview ?? "—"} foot="Verification signal only" tone="warning" /></div><div className="section-heading"><div><h2>Today’s classes</h2><p>Open a class to review or edit attendance status.</p></div><Link href="/staff/attendance" className="small-link">View all <ArrowRight size={13} /></Link></div><div className="staff-grid">{classes.map((item) => <section className="surface staff-class-card" key={item.classId}><div className="class-card-head"><span className="class-code">{item.code}</span><StatusChip status="present" label="Live record" /></div><div className="class-name">{item.subject}</div><div style={{ marginTop: 4, color: "#8d857c", fontSize: 11 }}>{item.className}</div><div className="class-meta"><span><Clock3 size={12} />{item.time}</span><span><MapPin size={12} />{item.room}</span></div><div className="class-counts"><div><strong className="tabular">{item.students.filter((student) => student.status === "present").length}</strong><small>Present</small></div><div><strong className="tabular">{item.students.filter((student) => student.status === "absent").length}</strong><small>Absent</small></div><div><strong className="tabular">{item.students.filter((student) => student.status === "unmarked").length}</strong><small>Unmarked</small></div></div><Link href={`/staff/attendance?class=${item.classId}`} className="btn btn-secondary" style={{ width: "100%", marginTop: 16 }}>Review roster <ArrowRight size={14} /></Link></section>)}</div></>; }
+
+function StaffAttendancePage() { const { session } = useSession(); const [location, setLocation] = useLocation(); const [classes, setClasses] = useState<Awaited<ReturnType<typeof attendanceApi.getStaffOverview>>["classes"]>([]); const [selectedClass, setSelectedClass] = useState(""); const [roster, setRoster] = useState<Awaited<ReturnType<typeof attendanceApi.getRoster>> | null>(null); const [drafts, setDrafts] = useState<Record<string, AttendanceStatus>>({}); const [saving, setSaving] = useState<string | null>(null); const [saved, setSaved] = useState<string | null>(null); const queryClass = new URLSearchParams(location.split("?")[1] ?? "").get("class"); useEffect(() => { if (session) attendanceApi.getStaffOverview(session).then((data) => { setClasses(data.classes); const first = queryClass && data.classes.some((item) => item.classId === queryClass) ? queryClass : data.classes[0]?.classId ?? ""; setSelectedClass(first); }).catch(() => undefined); }, [session, queryClass]); useEffect(() => { if (session && selectedClass) attendanceApi.getRoster(session, selectedClass).then((data) => { setRoster(data); setDrafts(Object.fromEntries(data.students.map((student) => [student.id, student.status]))); }).catch(() => undefined); }, [selectedClass, session]); const selectedClassInfo = classes.find((item) => item.classId === selectedClass); async function save(studentId: string) { if (!session || !roster) return; setSaving(studentId); setSaved(null); try { const updated = await attendanceApi.updateAttendance(session, roster.classId, studentId, drafts[studentId]); setRoster(updated); setSaved(studentId); setTimeout(() => setSaved(null), 1800); } finally { setSaving(null); } } return <><Topbar eyebrow="Attendance workspace" title="Edit attendance" subtitle={`You are signed in as ${roleLabels[session?.role ?? "faculty"]}. Only attendance status can be changed here.`} action={<button className="icon-button" aria-label="Refresh roster" onClick={() => selectedClass && attendanceApi.getRoster(session!, selectedClass).then(setRoster)}><RefreshCw size={16} /></button>} /><div className="surface surface-pad"><div className="roster-toolbar"><div><div className="section-heading" style={{ marginBottom: 3 }}><div><h2>Class roster</h2><p>{selectedClassInfo?.subject ?? "Loading class"} · {selectedClassInfo?.className ?? ""} · {selectedClassInfo?.date ?? ""}</p></div></div></div><div className="filter-row" style={{ margin: 0 }}><div className="select-wrap"><select className="select-control" value={selectedClass} onChange={(event) => { setSelectedClass(event.target.value); setLocation(`/staff/attendance?class=${event.target.value}`); }}>{classes.map((item) => <option key={item.classId} value={item.classId}>{item.code} · {item.subject} · {item.className}</option>)}</select><ChevronDown size={13} /></div><button className="btn btn-secondary"><Filter size={14} /> Filters</button></div></div><div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 15, padding: "9px 11px", borderRadius: 9, background: "#fbf4ec", color: "#896d59", fontSize: 10 }}><Info size={14} /> Editing changes only the attendance mark. Verification evidence, identity, and official percentages remain read-only.</div><div className="roster-table-wrap"><table className="roster-table"><thead><tr><th>Student</th><th>Verification</th><th>Attendance status</th><th>Save</th></tr></thead><tbody>{roster?.students.map((student) => <tr key={student.id}><td><div className="student-cell"><span className="student-mini-avatar">{student.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span><div><div className="student-name">{student.name}</div><div className="student-register">{student.registerNumber}</div></div></div></td><td><StatusChip status={student.verification === "Needs review" ? "needs-review" : student.verification === "Verified" ? "present" : "unmarked"} label={student.verification} /></td><td><select className="status-select" value={drafts[student.id] ?? student.status} onChange={(event) => setDrafts((current) => ({ ...current, [student.id]: event.target.value as AttendanceStatus }))}><option value="present">Present</option><option value="absent">Absent</option><option value="late">Late</option><option value="unmarked">Unmarked</option></select></td><td><button className="btn btn-secondary" style={{ minHeight: 31, padding: "0 9px", fontSize: 10 }} onClick={() => save(student.id)} disabled={saving === student.id || drafts[student.id] === student.status}>{saving === student.id ? <RefreshCw size={12} className="animate-spin" /> : saved === student.id ? <Check size={12} /> : <Save size={12} />} {saved === student.id ? "Saved" : "Save"}</button></td></tr>)}</tbody></table></div>{!roster && <div className="empty-state"><RefreshCw size={22} className="animate-spin" /><strong>Loading roster</strong><p>Fetching the selected class from the demo adapter.</p></div>}</div><div className="two-column" style={{ marginTop: 18 }}><section className="surface surface-pad"><div className="section-heading"><div><h2>Activity log</h2><p>Demo audit trail for this workspace</p></div><Activity size={17} color="#aaa197" /></div><div className="notice-list"><div className="notice-item"><span className="notice-dot green" /><div><div className="notice-title">Roster opened</div><div className="notice-body">{session?.name} opened {selectedClassInfo?.code ?? "the class"} for review.</div></div><span className="notice-time">Just now</span></div><div className="notice-item"><span className="notice-dot gold" /><div><div className="notice-title">Evidence signals visible</div><div className="notice-body">AI/RFID indicators are read-only and backend-owned.</div></div><span className="notice-time">Policy</span></div></div></section><section className="surface surface-pad"><div className="section-heading"><div><h2>Staff permission boundary</h2><p>What this screen does not change</p></div><ShieldCheck size={17} color="#aaa197" /></div><div style={{ display: "grid", gap: 10, color: "#746d64", fontSize: 11 }}><div style={{ display: "flex", gap: 8 }}><X size={14} color="#bd6b5a" /> Official attendance percentages</div><div style={{ display: "flex", gap: 8 }}><X size={14} color="#bd6b5a" /> AI or RFID evidence</div><div style={{ display: "flex", gap: 8 }}><X size={14} color="#bd6b5a" /> Student identity or enrollment status</div><div style={{ display: "flex", gap: 8 }}><Check size={14} color="#65a879" /> Attendance status for this roster</div></div></section></div></>; }
+
+function RoleGate({ allowed, children }: { allowed: Role[]; children: ReactNode }) { const { session } = useSession(); if (!session) return <Redirect to="/login" />; if (!allowed.includes(session.role)) return <Redirect to={session.role === "student" ? "/student" : "/staff"} />; return <>{children}</>; }
+
+function RoleRouter() { const { session } = useSession(); const home = session ? (session.role === "student" ? "/student" : "/staff") : "/login"; return <Switch><Route path="/login">{session ? <Redirect to={home} /> : <LoginPage />}</Route><Route path="/"><Redirect to={home} /></Route><Route path="/student"><RoleGate allowed={["student"]}><AppShell><StudentDashboard /></AppShell></RoleGate></Route><Route path="/student/attendance"><RoleGate allowed={["student"]}><AppShell><AttendancePage /></AppShell></RoleGate></Route><Route path="/student/enrollment"><RoleGate allowed={["student"]}><AppShell><EnrollmentPage /></AppShell></RoleGate></Route><Route path="/student/notifications"><RoleGate allowed={["student"]}><AppShell><NotificationsPage /></AppShell></RoleGate></Route><Route path="/student/profile"><RoleGate allowed={["student"]}><AppShell><ProfilePage /></AppShell></RoleGate></Route><Route path="/staff"><RoleGate allowed={["faculty", "management"]}><AppShell><StaffDashboard /></AppShell></RoleGate></Route><Route path="/staff/attendance"><RoleGate allowed={["faculty", "management"]}><AppShell><StaffAttendancePage /></AppShell></RoleGate></Route><Route><RoleGate allowed={["student", "faculty", "management"]}><AppShell><div className="empty-state"><CircleAlert size={28} /><strong>Page not found</strong><p>That workspace route does not exist.</p><Link href="/" className="btn btn-primary" style={{ marginTop: 16 }}>Back to home</Link></div></AppShell></RoleGate></Route></Switch>; }
+
+function App() { return <ErrorBoundary><ThemeProvider defaultTheme="light"><Toaster /><SessionProvider><RoleRouter /></SessionProvider></ThemeProvider></ErrorBoundary>; }
 export default App;
