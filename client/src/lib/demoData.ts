@@ -17,6 +17,7 @@ export type DemoUser = {
   name: string;
   shortName: string;
   subtitle: string;
+  aliases?: string[];
 };
 
 export type UserProfile = {
@@ -101,12 +102,28 @@ export type ClassRoster = {
 
 export const demoUsers: DemoUser[] = [
   {
-    id: "QC2024A001",
-    password: "student123",
+    id: "222405939",
+    password: "222405939",
     role: "student",
-    name: "Maya Rao",
-    shortName: "MR",
-    subtitle: "B.Tech Computer Science · Section A",
+    name: "Jeevan G",
+    shortName: "JG",
+    subtitle: "B.Sc Computer Science · 3rd year · 2nd batch",
+  },
+  {
+    id: "222405974",
+    password: "222405974",
+    role: "student",
+    name: "Sarathi M",
+    shortName: "SM",
+    subtitle: "B.Sc Computer Science · 3rd year · 2nd batch",
+  },
+  {
+    id: "222405983",
+    password: "222405983",
+    role: "student",
+    name: "Vigneshwar D",
+    shortName: "VD",
+    subtitle: "B.Sc Computer Science · 3rd year · 2nd batch",
   },
   {
     id: "FAC-104",
@@ -127,12 +144,12 @@ export const demoUsers: DemoUser[] = [
 ];
 
 export const studentProfile: UserProfile = {
-  name: "Maya Rao",
-  registerNumber: "QC2024A001",
-  email: "maya.rao@quantumcrew.edu",
-  course: "B.Tech Computer Science",
-  yearSection: "Year 2 · Section A",
-  batch: "2024–2028",
+  name: "Jeevan G",
+  registerNumber: "222405939",
+  email: "jeevang@srmasc.ac.in",
+  course: "B.Sc Computer Science",
+  yearSection: "3rd year · 2nd batch",
+  batch: "2024–2027",
   role: "student",
   enrollmentStatus: "in-progress",
 };
@@ -246,6 +263,46 @@ export const enrollmentInfo: EnrollmentInfo = {
   eligibilityNote: "Eligible for initial enrollment. Your official status is decided by the VISIONATTEND backend.",
 };
 
+export type StudentDataset = {
+  profile: UserProfile;
+  today: AttendanceRecord[];
+  history: AttendanceRecord[];
+  subjects: SubjectSummary[];
+  percentage: number;
+  notifications: AppNotification[];
+  evidence: Record<string, VerificationEvidence>;
+  enrollment: EnrollmentInfo;
+};
+
+function buildStudentDataset({ registerNumber, name, email, percentage, absentIndex, enrollmentStep }: { registerNumber: string; name: string; email: string; percentage: number; absentIndex: number; enrollmentStep: number }): StudentDataset {
+  const prefix = registerNumber;
+  const history = historyRecords.map((record, index) => ({
+    ...record,
+    id: `${prefix}-${record.id}`,
+    status: index === absentIndex ? "absent" as const : record.status,
+  }));
+  const profile: UserProfile = { name, registerNumber, email, course: "B.Sc Computer Science", yearSection: "3rd year · 2nd batch", batch: "2024–2027", role: "student", enrollmentStatus: enrollmentStep >= 5 ? "submitted" : "in-progress" };
+  const subjects = subjectSummaries.map((subject, index) => {
+    const present = Math.max(0, subject.present - (index + absentIndex) % 3);
+    const total = subject.total;
+    const subjectPercentage = Math.round((present / total) * 100);
+    return { ...subject, present, percentage: subjectPercentage, tone: subjectPercentage >= 85 ? "green" as const : subjectPercentage >= 75 ? "amber" as const : "red" as const };
+  });
+  const scopedNotifications = notifications.map((item) => ({ ...item, id: `${prefix}-${item.id}`, attendanceId: item.attendanceId ? `${prefix}-${item.attendanceId}` : undefined }));
+  const evidence = Object.fromEntries(Object.entries(verificationByAttendance).map(([id, item]) => {
+    const scopedId = `${prefix}-${id}`;
+    return [scopedId, { ...item, attendanceId: scopedId }];
+  }));
+  const enrollment: EnrollmentInfo = { ...enrollmentInfo, currentStep: enrollmentStep, detail: `${enrollmentStep} of 5 guided captures are ready for backend review.`, state: enrollmentStep >= 5 ? "submitted" : "in-progress", label: enrollmentStep >= 5 ? "Submitted for backend review" : "Face enrollment in progress" };
+  return { profile, today: history.slice(0, 5), history, subjects, percentage, notifications: scopedNotifications, evidence, enrollment };
+}
+
+export const studentDataById: Record<string, StudentDataset> = {
+  "222405939": buildStudentDataset({ registerNumber: "222405939", name: "Jeevan G", email: "jeevang@srmasc.ac.in", percentage: 88, absentIndex: 2, enrollmentStep: 2 }),
+  "222405974": buildStudentDataset({ registerNumber: "222405974", name: "Sarathi M", email: "sarathim@srmasc.ac.in", percentage: 91, absentIndex: 1, enrollmentStep: 3 }),
+  "222405983": buildStudentDataset({ registerNumber: "222405983", name: "Vigneshwar D", email: "vigneshwar.d@srmasc.ac.in", percentage: 95, absentIndex: 4, enrollmentStep: 4 }),
+};
+
 export const staffClasses: ClassRoster[] = [
   {
     classId: "class-cs204-a",
@@ -256,9 +313,9 @@ export const staffClasses: ClassRoster[] = [
     room: "Lab 2 · East Wing",
     date: "06 Oct 2026",
     students: [
-      { id: "s1", name: "Maya Rao", registerNumber: "QC2024A001", status: "present", verification: "Verified" },
-      { id: "s2", name: "Ishaan Mehta", registerNumber: "QC2024A002", status: "present", verification: "Verified" },
-      { id: "s3", name: "Nivedita Paul", registerNumber: "QC2024A003", status: "late", verification: "Needs review" },
+      { id: "s1", name: "Jeevan G", registerNumber: "222405939", status: "present", verification: "Verified" },
+      { id: "s2", name: "Sarathi M", registerNumber: "222405974", status: "present", verification: "Verified" },
+      { id: "s3", name: "Vigneshwar D", registerNumber: "222405983", status: "late", verification: "Needs review" },
       { id: "s4", name: "Kabir Joshi", registerNumber: "QC2024A004", status: "absent", verification: "Not available" },
       { id: "s5", name: "Tara Menon", registerNumber: "QC2024A005", status: "unmarked", verification: "Not available" },
     ],
@@ -272,9 +329,9 @@ export const staffClasses: ClassRoster[] = [
     room: "Room 204",
     date: "06 Oct 2026",
     students: [
-      { id: "s1", name: "Maya Rao", registerNumber: "QC2024A001", status: "present", verification: "Verified" },
-      { id: "s2", name: "Ishaan Mehta", registerNumber: "QC2024A002", status: "absent", verification: "Not available" },
-      { id: "s3", name: "Nivedita Paul", registerNumber: "QC2024A003", status: "present", verification: "Verified" },
+      { id: "s1", name: "Jeevan G", registerNumber: "222405939", status: "present", verification: "Verified" },
+      { id: "s2", name: "Sarathi M", registerNumber: "222405974", status: "absent", verification: "Not available" },
+      { id: "s3", name: "Vigneshwar D", registerNumber: "222405983", status: "present", verification: "Verified" },
       { id: "s4", name: "Kabir Joshi", registerNumber: "QC2024A004", status: "present", verification: "Verified" },
       { id: "s5", name: "Tara Menon", registerNumber: "QC2024A005", status: "present", verification: "Needs review" },
     ],

@@ -2,9 +2,8 @@
 
 ## What is implemented
 
-This preview is a mobile-first responsive Manus-hosted web app for Quantum Crew with three demo roles:
-
-- **Student:** personal dashboard, attendance history and summaries, verification evidence detail, notifications, read-only profile, and five-step face self-enrollment guidance.
+This preview is a mobile-first responsive Manus-hosted web app for Quantum Crew with student accounts plus staff demo roles:
+- **Students:** Jeevan G, Sarathi M, and Vigneshwar D each have a scoped personal dashboard, attendance history and summaries, verification evidence detail, notifications, read-only profile, and five-step face self-enrollment guidance.
 - **Faculty:** staff dashboard and attendance workspace scoped to assigned classes.
 - **Management:** staff dashboard and broader attendance workspace across the demo class set.
 
@@ -12,15 +11,15 @@ Faculty and management can edit attendance status only. Student identity, enroll
 
 ## Preview access
 
-The app uses demo credentials because no production backend API base URL or final contract was provided:
-
-| Role | ID | Password |
+The app uses demo credentials because no production backend API base URL or final contract was provided. Student login accepts either the full name or register number as the identifier; the register number is the password:
+| Role | Name / ID | Password |
 | --- | --- | --- |
-| Student | `QC2024A001` | `student123` |
+| Student | `Jeevan G` or `222405939` | `222405939` |
+| Student | `Sarathi M` or `222405974` | `222405974` |
+| Student | `Vigneshwar D` or `222405983` | `222405983` |
 | Faculty | `FAC-104` | `faculty123` |
 | Management | `MGT-001` | `manage123` |
-
-The login screen also includes role preview buttons that fill these credentials without exposing any production account data.
+The login screen includes a student preview button for Jeevan G and staff preview buttons. The other two students can sign in by entering their name or register number manually. These are preview accounts only; production authentication must hash and validate passwords in the backend.
 
 ## Local setup
 
@@ -59,7 +58,7 @@ For the browser camera flow, confirm the required permissions and upload endpoin
 
 ## Known limitations
 
-- Demo credentials and sample data are not real attendance.
+- Student records supplied for this preview are scoped in the demo adapter; attendance remains sample data and is not official.
 - The FastAPI adapter is a typed connection boundary, not a completed production integration.
 - Browser camera capture is represented as guided demo UI until the finalized enrollment upload contract is supplied.
 - No public deployment has been performed.

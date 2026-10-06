@@ -5,6 +5,7 @@ import {
   notifications,
   staffClasses,
   studentProfile,
+  studentDataById,
   subjectSummaries,
   todayPeriods,
   verificationByAttendance,
@@ -31,7 +32,7 @@ export type AttendanceApi = {
   login(identifier: string, password: string): Promise<Session>;
   getProfile(session: Session): Promise<UserProfile>;
   getStudentHome(session: Session): Promise<{ today: AttendanceRecord[]; percentage: number; enrolled: EnrollmentInfo }>;
-  getAttendance(session: Session): Promise<{ history: AttendanceRecord[]; subjects: typeof subjectSummaries }>;
+  getAttendance(session: Session): Promise<{ history: AttendanceRecord[]; subjects: typeof subjectSummaries; percentage: number }>;
   getNotifications(session: Session): Promise<typeof notifications>;
   getEnrollment(session: Session): Promise<EnrollmentInfo>;
   advanceEnrollment(session: Session): Promise<EnrollmentInfo>;
@@ -44,7 +45,7 @@ export type AttendanceApi = {
 const delay = (ms = 180) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let mutableClasses = structuredClone(staffClasses);
-let mutableEnrollment = structuredClone(enrollmentInfo);
+let mutableEnrollments = Object.fromEntries(Object.entries(studentDataById).map(([id, data]) => [id, structuredClone(data.enrollment)]));
 
 function ensureRole(session: Session, roles: Role[]) {
   if (!roles.includes(session.role)) {
@@ -52,11 +53,18 @@ function ensureRole(session: Session, roles: Role[]) {
   }
 }
 
+function getStudentDataset(session: Session) {
+  ensureRole(session, ["student"]);
+  const dataset = studentDataById[session.userId];
+  if (!dataset) throw new Error("This student account is not provisioned in the preview.");
+  return dataset;
+}
+
 const demoApi: AttendanceApi = {
   async login(identifier, password) {
     await delay(260);
     const normalized = identifier.trim().toLowerCase();
-    const user = demoUsers.find((item) => item.id.toLowerCase() === normalized && item.password === password);
+    const user = demoUsers.find((item) => (item.id.toLowerCase() === normalized || item.name.toLowerCase() === normalized || item.aliases?.some((alias) => alias.toLowerCase() === normalized)) && item.password === password);
     if (!user) throw new Error("We couldn’t sign you in with those details. Check your ID and password.");
     return {
       token: `demo-${user.role}-${Date.now()}`,
@@ -71,53 +79,52 @@ const demoApi: AttendanceApi = {
 
   async getProfile(session) {
     await delay();
-    ensureRole(session, ["student"]);
-    return studentProfile;
+    return getStudentDataset(session).profile;
   },
 
   async getStudentHome(session) {
     await delay();
-    ensureRole(session, ["student"]);
-    return { today: todayPeriods, percentage: 92, enrolled: mutableEnrollment };
+    const dataset = getStudentDataset(session);
+    return { today: dataset.today, percentage: dataset.percentage, enrolled: mutableEnrollments[session.userId] ?? dataset.enrollment };
   },
 
   async getAttendance(session) {
     await delay();
-    ensureRole(session, ["student"]);
-    return { history: historyRecords, subjects: subjectSummaries };
+    const dataset = getStudentDataset(session);
+    return { history: dataset.history, subjects: dataset.subjects, percentage: dataset.percentage };
   },
 
   async getNotifications(session) {
     await delay();
-    ensureRole(session, ["student"]);
-    return notifications;
+    return getStudentDataset(session).notifications;
   },
 
   async getEnrollment(session) {
     await delay();
-    ensureRole(session, ["student"]);
-    return mutableEnrollment;
+    const dataset = getStudentDataset(session);
+    return mutableEnrollments[session.userId] ?? dataset.enrollment;
   },
 
   async advanceEnrollment(session) {
     await delay(420);
-    ensureRole(session, ["student"]);
-    const nextStep = Math.min(mutableEnrollment.currentStep + 1, mutableEnrollment.totalSteps);
-    mutableEnrollment = {
-      ...mutableEnrollment,
+    const dataset = getStudentDataset(session);
+    const current = mutableEnrollments[session.userId] ?? dataset.enrollment;
+    const nextStep = Math.min(current.currentStep + 1, current.totalSteps);
+    const updated: EnrollmentInfo = {
+      ...current,
       currentStep: nextStep,
       detail: nextStep >= 5 ? "All five captures are ready for backend review." : `${nextStep} of 5 guided captures are ready for backend review.`,
       state: nextStep >= 5 ? "submitted" : "in-progress",
       label: nextStep >= 5 ? "Submitted for backend review" : "Face enrollment in progress",
       lastUpdated: "Just now",
     };
-    return mutableEnrollment;
+    mutableEnrollments = { ...mutableEnrollments, [session.userId]: updated };
+    return updated;
   },
 
   async getEvidence(session, attendanceId) {
     await delay();
-    ensureRole(session, ["student"]);
-    return verificationByAttendance[attendanceId] ?? null;
+    return getStudentDataset(session).evidence[attendanceId] ?? null;
   },
 
   async getStaffOverview(session) {
@@ -164,7 +171,7 @@ export class FastApiAttendanceApi implements AttendanceApi {
   login(): Promise<Session> { return Promise.reject(this.unavailable()); }
   getProfile(): Promise<UserProfile> { return Promise.reject(this.unavailable()); }
   getStudentHome(): Promise<{ today: AttendanceRecord[]; percentage: number; enrolled: EnrollmentInfo }> { return Promise.reject(this.unavailable()); }
-  getAttendance(): Promise<{ history: AttendanceRecord[]; subjects: typeof subjectSummaries }> { return Promise.reject(this.unavailable()); }
+  getAttendance(): Promise<{ history: AttendanceRecord[]; subjects: typeof subjectSummaries; percentage: number }> { return Promise.reject(this.unavailable()); }
   getNotifications(): Promise<typeof notifications> { return Promise.reject(this.unavailable()); }
   getEnrollment(): Promise<EnrollmentInfo> { return Promise.reject(this.unavailable()); }
   advanceEnrollment(): Promise<EnrollmentInfo> { return Promise.reject(this.unavailable()); }
