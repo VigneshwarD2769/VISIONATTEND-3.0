@@ -52,6 +52,8 @@ The final integration must use authenticated HTTPS APIs only. The app must not c
 
 The supplied backend archive has a schema mismatch: `period_attendance.py` reads `students.register_number` and `students.batch`, but `database/models.py` does not define those columns. It also contains no database dump or migration. See [BACKEND_SCHEMA_AUDIT.md](BACKEND_SCHEMA_AUDIT.md) before activating the real API.
 
+A corrected source patch and idempotent PostgreSQL migration are included under [`backend-patch/`](backend-patch/). The patch is not a runnable backend by itself: the supplied archive has no authentication/user table or login endpoint, and this web project has no reachable FastAPI base URL or database connection. Do not remove Demo mode until those services are deployed and tested.
+
 ## Required backend configuration before production integration
 
 Provide the final API base URL, OpenAPI/contract details, authentication and refresh/session scheme, role claims for faculty and management, CORS policy, enrollment multipart upload format, upload retry/idempotency semantics, staff attendance-edit permissions, and the safe user-facing status/error payloads.
