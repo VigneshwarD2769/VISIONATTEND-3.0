@@ -48,7 +48,7 @@ Before activation, verify the real FastAPI contract for:
 - `GET /attendance/{id}/evidence`
 - Staff attendance read/update endpoints and their role authorization behavior.
 
-The final integration must use authenticated HTTPS APIs only. The app must not connect directly to PostgreSQL, create an attendance database, calculate conflicting official percentages, store face embeddings/templates, expose raw AI scores, or let one student view another student’s data.
+The final integration must use authenticated HTTPS APIs only. The app must not connect directly to PostgreSQL, create an attendance database, calculate conflicting official percentages, store face embeddings/templates in the browser, expose raw AI scores, or let one student view another student’s data. The management capture boundary sends each transient image to the backend; the backend must create the embedding and persist it against the selected student.
 
 The supplied backend archive has a schema mismatch: `period_attendance.py` reads `students.register_number` and `students.batch`, but `database/models.py` does not define those columns. It also contains no database dump or migration. See [BACKEND_SCHEMA_AUDIT.md](BACKEND_SCHEMA_AUDIT.md) before activating the real API.
 
@@ -58,12 +58,12 @@ A corrected source patch and idempotent PostgreSQL migration are included under 
 
 Provide the final API base URL, OpenAPI/contract details, authentication and refresh/session scheme, role claims for faculty and management, CORS policy, enrollment multipart upload format, upload retry/idempotency semantics, staff attendance-edit permissions, and the safe user-facing status/error payloads.
 
-For the browser camera flow, confirm the required permissions and upload endpoint behavior. The current preview intentionally uses a camera-style demo surface and never uploads or stores an image.
+For the browser camera flow, confirm the required permissions, HTTPS/CORS policy, multipart upload format, and upload endpoint behavior. Management Preview now requests camera permission and captures a transient JPEG frame. Demo mode discards that frame after the adapter call; the future FastAPI adapter must upload it to the authenticated enrollment image endpoint, create the face embedding server-side, and store it in the database for the selected student.
 
 ## Known limitations
 
 - Student records supplied for this preview are scoped in the demo adapter; attendance remains sample data and is not official.
 - The FastAPI adapter is a typed connection boundary, not a completed production integration.
-- Browser camera capture is represented as guided demo UI until the finalized enrollment upload contract is supplied.
+- Browser camera permission and capture are implemented, but real embedding creation/database persistence remains blocked until the finalized authenticated FastAPI upload and embedding contract is supplied.
 - No public deployment has been performed.
 - Production readiness, legal compliance, and scale characteristics have not been claimed or verified.

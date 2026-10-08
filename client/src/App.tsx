@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Redirect, Route, Switch, useLocation } from "wouter";
 import {
   Activity,
@@ -167,24 +167,84 @@ function AttendancePage() {
 function EvidenceModal({ record, onClose }: { record: AttendanceRecord; onClose: () => void }) { const { session } = useSession(); const [evidence, setEvidence] = useState<Awaited<ReturnType<typeof attendanceApi.getEvidence>>>(null); useEffect(() => { if (session) attendanceApi.getEvidence(session, record.id).then(setEvidence).catch(() => setEvidence(null)); }, [record.id, session]); return <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card"><div className="modal-header"><div><h3>{record.subject} · verification detail</h3><p>{record.date} · {record.time} · {record.status === "absent" ? "Attendance was marked absent" : "Attendance status record"}</p></div><button className="modal-close" onClick={onClose} aria-label="Close"><X size={18} /></button></div>{evidence ? <><div className="evidence-rail"><div className="evidence-node"><div className="evidence-icon"><ScanFace size={16} /></div><div className="evidence-label">AI result</div><StatusChip status={evidence.aiResult === "Verified" ? "present" : "unmarked"} label={evidence.aiResult} /></div><div className="evidence-line" /><div className="evidence-node"><div className="evidence-icon"><BadgeCheck size={16} /></div><div className="evidence-label">Final status</div><StatusChip status={record.status} label={evidence.finalStatus} /></div></div><div style={{ padding: 13, borderRadius: 11, background: "#fbf8f3", color: "#756d63", fontSize: 11, lineHeight: 1.55 }}>{evidence.note}</div><div style={{ display: "flex", justifyContent: "space-between", marginTop: 16, color: "#9c9389", fontSize: 10 }}><span>Recorded</span><strong style={{ color: "#605950" }}>{evidence.recordedAt}</strong></div></> : <div className="empty-state"><WifiOff size={26} /><strong>Evidence not available</strong><p>The backend did not attach a verification evidence object to this record.</p></div>}</div></div>; }
 
 function ManagementEnrollmentPage() {
+  const { session } = useSession();
+  const mode = session?.mode ?? "demo";
   const [studentId, setStudentId] = useState("222405939");
   const [enrollment, setEnrollment] = useState<EnrollmentInfo>(() => structuredClone(studentDataById["222405939"].enrollment));
   const [busy, setBusy] = useState(false);
+  const [cameraState, setCameraState] = useState<"idle" | "requesting" | "ready" | "denied">("idle");
+  const [cameraMessage, setCameraMessage] = useState("Camera permission is required before capturing a student image.");
+  const [captureMessage, setCaptureMessage] = useState("No image captured for this step yet.");
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const profile = studentDataById[studentId].profile;
   const pose = ["Front", "Slight left", "Slight right", "Slight upward tilt", "Slight downward tilt"][Math.max(0, enrollment.currentStep - 1)];
+
+  useEffect(() => () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+  }, []);
+
+  async function requestCamera() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraState("denied");
+      setCameraMessage("This browser does not provide camera access. Use the deployed HTTPS Preview or a supported browser.");
+      return;
+    }
+    setCameraState("requesting");
+    setCameraMessage("Waiting for the browser camera permission prompt…");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setCameraState("ready");
+      setCameraMessage("Camera ready. Keep the student’s face inside the guide.");
+    } catch {
+      setCameraState("denied");
+      setCameraMessage("Camera permission was not granted. Allow camera access in the browser and try again.");
+    }
+  }
+
   function selectStudent(nextId: string) {
     setStudentId(nextId);
     setEnrollment(structuredClone(studentDataById[nextId].enrollment));
+    setCaptureMessage("No image captured for this step yet.");
   }
+
   async function capture() {
-    if (enrollment.currentStep >= 5) return;
+    if (!session || cameraState !== "ready" || !videoRef.current || enrollment.currentStep >= enrollment.totalSteps) return;
+    const video = videoRef.current;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setCaptureMessage("This browser could not prepare the camera frame. Try again.");
+      return;
+    }
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const image = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.86));
+    if (!image) {
+      setCaptureMessage("The camera frame could not be prepared. Try again.");
+      return;
+    }
     setBusy(true);
-    await new Promise((resolve) => setTimeout(resolve, 420));
-    const nextStep = Math.min(enrollment.currentStep + 1, enrollment.totalSteps);
-    setEnrollment((current) => ({ ...current, currentStep: nextStep, state: nextStep >= 5 ? "submitted" : "in-progress", label: nextStep >= 5 ? "Submitted for backend review" : "Face enrollment in progress", detail: `${nextStep} of 5 guided captures are ready for backend review.`, lastUpdated: "Just now" }));
-    setBusy(false);
+    setCaptureMessage(mode === "demo" ? "Preparing the demo frame; no image will leave this Preview…" : "Uploading the captured image over the authenticated HTTPS enrollment boundary…");
+    try {
+      const updated = await attendanceApi.submitManagementEnrollmentCapture(session, studentId, image);
+      setEnrollment(updated);
+      setCaptureMessage(mode === "demo" ? "Demo frame accepted; it was discarded locally. A connected backend would create and store the face embedding for this student." : "Image accepted by the enrollment boundary. The backend will create and store the face embedding for this student.");
+    } catch (error) {
+      setCaptureMessage(error instanceof Error ? error.message : "The enrollment image could not be submitted. Try again.");
+    } finally {
+      setBusy(false);
+    }
   }
-  return <><Topbar eyebrow="Management · face enrollment" title="Enroll a student face" subtitle="Management can enroll student faces and review identity details. Students cannot access this workspace." action={<span className="demo-pill">Management only</span>} /><div className="surface surface-pad" style={{ marginBottom: 18 }}><div className="section-heading"><div><h2>Select student</h2><p>Choose a student before starting or continuing enrollment.</p></div><div className="select-wrap"><select className="select-control" value={studentId} onChange={(event) => selectStudent(event.target.value)}>{Object.values(studentDataById).map((item) => <option key={item.profile.registerNumber} value={item.profile.registerNumber}>{item.profile.name} · {item.profile.registerNumber}</option>)}</select><ChevronDown size={13} /></div></div><div className="profile-grid"><ReadOnlyField label="Full name" value={profile.name} /><ReadOnlyField label="Register number" value={profile.registerNumber} /><ReadOnlyField label="Department / course" value={profile.course} /><ReadOnlyField label="Year / section" value={profile.yearSection} /><ReadOnlyField label="Batch" value={profile.batch} /><ReadOnlyField label="Email" value={profile.email} /></div></div><div className="enrollment-layout"><section className="surface surface-pad"><div className="stepper">{["Front", "Left", "Right", "Up", "Down"].map((label, index) => <div key={label} className={`step-item ${index + 1 < enrollment.currentStep ? "complete" : ""} ${index + 1 === enrollment.currentStep ? "active" : ""}`}><div className="step-circle">{index + 1 < enrollment.currentStep ? <Check size={13} /> : index + 1}</div><span>{label}</span></div>)}</div><div className="camera-stage"><div className="capture-status">Management capture guidance active</div><div className="face-oval"><ScanFace /></div><div className="camera-guide">Keep the student’s face inside the guide · even lighting</div></div><h2 className="enrollment-instruction">Look {pose.toLowerCase()}</h2><p className="enrollment-helper">Capture five guided views for the selected student. The backend makes the final acceptance decision; this preview never stores face templates.</p><div className="enrollment-actions"><button className="btn btn-primary" onClick={capture} disabled={busy || enrollment.currentStep >= 5}>{busy ? <><RefreshCw size={14} className="animate-spin" /> Processing…</> : enrollment.currentStep >= 5 ? <><CheckCircle2 size={14} /> All captures ready</> : <><Camera size={14} /> Capture this step</>}</button><button className="btn btn-secondary" disabled={busy || enrollment.currentStep === 1} onClick={() => setEnrollment((current) => ({ ...current, currentStep: Math.max(1, current.currentStep - 1), detail: "Ready to retake the previous guided capture." }))}><RotateCcw size={14} /> Retake</button></div></section><aside className="status-panel"><div className="status-panel-card accent"><div className="status-panel-label">Current status</div><div className="status-panel-title">{enrollment.label}</div><p className="status-panel-copy">{enrollment.detail}</p><div className="progress-track" style={{ marginTop: 15 }}><div className="progress-fill" style={{ width: `${(enrollment.currentStep / enrollment.totalSteps) * 100}%` }} /></div><div className="status-detail-row"><span>Progress</span><strong>{enrollment.currentStep} / {enrollment.totalSteps}</strong></div><div className="status-detail-row"><span>Last updated</span><strong>{enrollment.lastUpdated}</strong></div></div><div className="status-panel-card"><div className="status-panel-label">Management permissions</div><div style={{ display: "grid", gap: 10, marginTop: 13 }}>{["Review student identity details", "Capture five guided face views", "Submit for backend validation", "No raw face template is stored here"].map((item) => <div key={item} style={{ display: "flex", alignItems: "center", gap: 8, color: "#756d63", fontSize: 11 }}><CheckCircle2 size={14} color="#65a879" />{item}</div>)}</div></div></aside></div></>;
+
+  return <><Topbar eyebrow="Management · face enrollment" title="Enroll a student face" subtitle="Management can request camera access, capture guided images, and submit them to the authenticated backend for embedding processing." action={<span className="demo-pill">Management only</span>} /><div className="surface surface-pad" style={{ marginBottom: 18 }}><div className="section-heading"><div><h2>Select student</h2><p>Choose a student before starting or continuing enrollment.</p></div><div className="select-wrap"><select className="select-control" value={studentId} onChange={(event) => selectStudent(event.target.value)}>{Object.values(studentDataById).map((item) => <option key={item.profile.registerNumber} value={item.profile.registerNumber}>{item.profile.name} · {item.profile.registerNumber}</option>)}</select><ChevronDown size={13} /></div></div><div className="profile-grid"><ReadOnlyField label="Full name" value={profile.name} /><ReadOnlyField label="Register number" value={profile.registerNumber} /><ReadOnlyField label="Department / course" value={profile.course} /><ReadOnlyField label="Year / section" value={profile.yearSection} /><ReadOnlyField label="Batch" value={profile.batch} /><ReadOnlyField label="Email" value={profile.email} /></div></div><div className="enrollment-layout"><section className="surface surface-pad"><div className="stepper">{["Front", "Left", "Right", "Up", "Down"].map((label, index) => <div key={label} className={`step-item ${index + 1 < enrollment.currentStep ? "complete" : ""} ${index + 1 === enrollment.currentStep ? "active" : ""}`}><div className="step-circle">{index + 1 < enrollment.currentStep ? <Check size={13} /> : index + 1}</div><span>{label}</span></div>)}</div><div className="camera-stage"><video ref={videoRef} muted playsInline aria-label="Student camera capture preview" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 12, opacity: cameraState === "ready" ? 1 : 0 }} /><div className="capture-status">{cameraState === "ready" ? "Camera ready · live preview" : "Camera permission required"}</div><div className="face-oval"><ScanFace /></div><div className="camera-guide">Keep the student’s face inside the guide · even lighting</div>{cameraState !== "ready" && <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", padding: 20, textAlign: "center" }}><div><Camera size={24} color="#f3a071" /><p style={{ margin: "10px 0 13px", color: "#e9ded1", fontSize: 11 }}>{cameraMessage}</p><button className="btn btn-secondary" onClick={requestCamera} disabled={cameraState === "requesting"}>{cameraState === "requesting" ? "Requesting camera…" : "Allow camera access"}</button></div></div>}</div><h2 className="enrollment-instruction">Look {pose.toLowerCase()}</h2><p className="enrollment-helper">Capture five guided views for the selected student. The browser asks for camera permission before the first capture.</p><div style={{ padding: 12, borderRadius: 10, background: "#fbf4ec", color: "#896d59", fontSize: 10, lineHeight: 1.55, marginBottom: 15 }}><ShieldCheck size={13} style={{ verticalAlign: "middle", marginRight: 5 }} />{mode === "demo" ? "Demo mode discards the captured frame after the adapter call. In the connected backend, the image is sent through the authenticated enrollment boundary, where the server creates and stores the face embedding for the selected student." : "Captured images are sent through the authenticated enrollment boundary. The backend creates the face embedding and stores it for the selected student."} This frontend never stores embeddings or templates.</div><div className="enrollment-actions"><button className="btn btn-primary" onClick={capture} disabled={busy || cameraState !== "ready" || enrollment.currentStep >= 5}>{busy ? <><RefreshCw size={14} className="animate-spin" /> Processing…</> : enrollment.currentStep >= 5 ? <><CheckCircle2 size={14} /> All captures submitted</> : <><Camera size={14} /> Capture and submit</>}</button><button className="btn btn-secondary" disabled={busy || enrollment.currentStep === 1} onClick={() => setEnrollment((current) => ({ ...current, currentStep: Math.max(1, current.currentStep - 1), detail: "Ready to retake the previous guided capture." }))}><RotateCcw size={14} /> Retake</button></div><p style={{ marginTop: 12, color: "#91877d", fontSize: 10 }}>{captureMessage}</p></section><aside className="status-panel"><div className="status-panel-card accent"><div className="status-panel-label">Current status</div><div className="status-panel-title">{enrollment.label}</div><p className="status-panel-copy">{enrollment.detail}</p><div className="progress-track" style={{ marginTop: 15 }}><div className="progress-fill" style={{ width: `${(enrollment.currentStep / enrollment.totalSteps) * 100}%` }} /></div><div className="status-detail-row"><span>Progress</span><strong>{enrollment.currentStep} / {enrollment.totalSteps}</strong></div><div className="status-detail-row"><span>Last updated</span><strong>{enrollment.lastUpdated}</strong></div></div><div className="status-panel-card"><div className="status-panel-label">Permission and storage boundary</div><div style={{ display: "grid", gap: 10, marginTop: 13 }}>{["Browser camera permission is requested before capture", "Images are submitted only for the selected student", mode === "demo" ? "Connected backend creates and stores the face embedding" : "Backend creates and stores the face embedding", "No raw image, embedding, or template is persisted in this UI"].map((item) => <div key={item} style={{ display: "flex", alignItems: "center", gap: 8, color: "#756d63", fontSize: 11 }}><CheckCircle2 size={14} color="#65a879" />{item}</div>)}</div></div></aside></div></>;
 }
 
 function ManagementPercentagePage() {

@@ -36,6 +36,7 @@ export type AttendanceApi = {
   getNotifications(session: Session): Promise<typeof notifications>;
   getEnrollment(session: Session): Promise<EnrollmentInfo>;
   advanceEnrollment(session: Session): Promise<EnrollmentInfo>;
+  submitManagementEnrollmentCapture(session: Session, studentId: string, image: Blob): Promise<EnrollmentInfo>;
   getEvidence(session: Session, attendanceId: string): Promise<(typeof verificationByAttendance)[string] | null>;
   getStaffOverview(session: Session): Promise<{ classes: ClassRoster[]; totalStudents: number; todayMarked: number; needsReview: number }>;
   getRoster(session: Session, classId: string): Promise<ClassRoster>;
@@ -122,6 +123,25 @@ const demoApi: AttendanceApi = {
     return updated;
   },
 
+  async submitManagementEnrollmentCapture(session, studentId, _image) {
+    await delay(520);
+    ensureRole(session, ["management"]);
+    const dataset = studentDataById[studentId];
+    if (!dataset) throw new Error("This student account is not provisioned in the preview.");
+    const current = mutableEnrollments[studentId] ?? dataset.enrollment;
+    const nextStep = Math.min(current.currentStep + 1, current.totalSteps);
+    const updated: EnrollmentInfo = {
+      ...current,
+      currentStep: nextStep,
+      detail: nextStep >= 5 ? "Demo capture complete; a connected backend would create and store the embedding." : `${nextStep} of 5 guided demo captures are queued for backend processing.`,
+      state: nextStep >= 5 ? "submitted" : "in-progress",
+      label: nextStep >= 5 ? "Demo capture ready for backend review" : "Demo image queued for backend review",
+      lastUpdated: "Just now",
+    };
+    mutableEnrollments = { ...mutableEnrollments, [studentId]: updated };
+    return updated;
+  },
+
   async getEvidence(session, attendanceId) {
     await delay();
     return getStudentDataset(session).evidence[attendanceId] ?? null;
@@ -179,6 +199,7 @@ export class FastApiAttendanceApi implements AttendanceApi {
   getNotifications(): Promise<typeof notifications> { return Promise.reject(this.unavailable()); }
   getEnrollment(): Promise<EnrollmentInfo> { return Promise.reject(this.unavailable()); }
   advanceEnrollment(): Promise<EnrollmentInfo> { return Promise.reject(this.unavailable()); }
+  submitManagementEnrollmentCapture(): Promise<EnrollmentInfo> { return Promise.reject(this.unavailable()); }
   getEvidence(): Promise<(typeof verificationByAttendance)[string] | null> { return Promise.reject(this.unavailable()); }
   getStaffOverview(): Promise<{ classes: ClassRoster[]; totalStudents: number; todayMarked: number; needsReview: number }> { return Promise.reject(this.unavailable()); }
   getRoster(): Promise<ClassRoster> { return Promise.reject(this.unavailable()); }
