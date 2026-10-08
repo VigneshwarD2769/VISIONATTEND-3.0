@@ -4,11 +4,12 @@
     { "path": "/login", "title": "VISIONATTEND login" },
     { "path": "/student", "title": "Student dashboard" },
     { "path": "/student/attendance", "title": "Attendance" },
-    { "path": "/student/enrollment", "title": "Face enrollment" },
     { "path": "/student/notifications", "title": "Notifications" },
     { "path": "/student/profile", "title": "Student profile" },
     { "path": "/staff", "title": "Staff dashboard" },
-    { "path": "/staff/attendance", "title": "Attendance workspace" },
+    { "path": "/staff/attendance", "title": "Attendance Register" },
+    { "path": "/management/enrollment", "title": "Management face enrollment" },
+    { "path": "/management/percentages", "title": "Attendance percentage" },
     { "path": "/404", "title": "Not found" }
   ]
 }

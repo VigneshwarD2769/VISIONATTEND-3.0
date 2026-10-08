@@ -56,7 +56,6 @@ export type SubjectSummary = {
 export type VerificationEvidence = {
   attendanceId: string;
   aiResult: "Verified" | "Needs review" | "Not available";
-  rfidResult: "Verified" | "Not detected" | "Not available";
   finalStatus: "Confirmed present" | "Confirmed absent" | "Manual review";
   recordedAt: string;
   note: string;
@@ -242,14 +241,14 @@ export const subjectSummaries: SubjectSummary[] = [
 export const notifications: AppNotification[] = [
   { id: "n-1", title: "Attendance updated", body: "Data Structures · Period 01 was marked present.", time: "18 min ago", tone: "green", attendanceId: "att-1001", unread: true },
   { id: "n-2", title: "Absence recorded", body: "Operating Systems · Period 03 needs your attention.", time: "2 hr ago", tone: "orange", attendanceId: "att-1003", unread: true },
-  { id: "n-3", title: "Enrollment review in progress", body: "Your face self-enrollment is being checked by the backend.", time: "Yesterday", tone: "gold", unread: false },
+  { id: "n-3", title: "Attendance summary ready", body: "Your latest subject-wise attendance percentage is available to view.", time: "Yesterday", tone: "gold", unread: false },
   { id: "n-4", title: "Monthly attendance ready", body: "September attendance summary is available to view.", time: "Sep 30", tone: "gray", unread: false },
 ];
 
 export const verificationByAttendance: Record<string, VerificationEvidence> = {
-  "att-1001": { attendanceId: "att-1001", aiResult: "Verified", rfidResult: "Verified", finalStatus: "Confirmed present", recordedAt: "09:52 · 06 Oct 2026", note: "Both verification signals were returned as verified by the attendance backend." },
-  "att-1003": { attendanceId: "att-1003", aiResult: "Not available", rfidResult: "Not detected", finalStatus: "Confirmed absent", recordedAt: "12:02 · 06 Oct 2026", note: "No verification evidence was attached to this attendance record." },
-  "att-0997": { attendanceId: "att-0997", aiResult: "Verified", rfidResult: "Verified", finalStatus: "Confirmed present", recordedAt: "11:14 · 04 Oct 2026", note: "Late arrival was retained as returned by the backend." },
+  "att-1001": { attendanceId: "att-1001", aiResult: "Verified", finalStatus: "Confirmed present", recordedAt: "09:52 · 06 Oct 2026", note: "The attendance verification result was returned as verified by the attendance backend." },
+  "att-1003": { attendanceId: "att-1003", aiResult: "Not available", finalStatus: "Confirmed absent", recordedAt: "12:02 · 06 Oct 2026", note: "No verification evidence was attached to this attendance record." },
+  "att-0997": { attendanceId: "att-0997", aiResult: "Verified", finalStatus: "Confirmed present", recordedAt: "11:14 · 04 Oct 2026", note: "Late arrival was retained as returned by the backend." },
 };
 
 export const enrollmentInfo: EnrollmentInfo = {

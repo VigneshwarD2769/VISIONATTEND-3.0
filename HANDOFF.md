@@ -3,11 +3,11 @@
 ## What is implemented
 
 This preview is a mobile-first responsive Manus-hosted web app for Quantum Crew with student accounts plus staff demo roles:
-- **Students:** Jeevan G, Sarathi M, and Vigneshwar D each have a scoped personal dashboard, attendance history and summaries, verification evidence detail, notifications, read-only profile, and five-step face self-enrollment guidance.
-- **Faculty:** staff dashboard and attendance workspace scoped to assigned classes.
-- **Management:** staff dashboard and broader attendance workspace across the demo class set.
+- **Students:** Jeevan G, Sarathi M, and Vigneshwar D each have a scoped personal dashboard, attendance history and summaries, verification evidence detail, notifications, and read-only profile. Students do not have face-enrollment or RFID UI.
+- **Faculty:** staff dashboard and an Attendance Register scoped to assigned classes.
+- **Management:** staff dashboard, broader Attendance Register, management-only face enrollment with student identity details, and an attendance-percentage view for the three supplied student accounts.
 
-Faculty and management can edit attendance status only. Student identity, enrollment evidence, AI/RFID evidence, and official percentages are read-only. A persistent **Demo mode** label appears throughout the authenticated app.
+Faculty and management can edit attendance status only. When a staff member changes a row from absent to present, its verification state becomes **Verified**; late becomes **Needs review** and unmarked/absent becomes **Not available** in the preview adapter. Student identity, enrollment evidence, verification evidence, and official percentages are read-only. A persistent **Demo mode** label appears throughout the authenticated app.
 
 ## Preview access
 
@@ -40,8 +40,8 @@ All UI data is accessed through `client/src/lib/attendanceApi.ts`. The current d
 Before activation, verify the real FastAPI contract for:
 
 - `POST /auth/login`
-- `POST /enrollment/start`, `/enrollment/images`, `/enrollment/submit`, `/enrollment/retry`
-- `GET /enrollment/status`
+- Management-only `POST /enrollment/start`, `/enrollment/images`, `/enrollment/submit`, `/enrollment/retry`
+- Management-only `GET /enrollment/status`
 - `GET /students/me`
 - `GET /attendance/today`, `/attendance/history`, `/attendance/periods`, `/attendance/summary`
 - `GET /notifications`

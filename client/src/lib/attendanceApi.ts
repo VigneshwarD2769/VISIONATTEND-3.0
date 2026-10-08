@@ -151,7 +151,11 @@ const demoApi: AttendanceApi = {
     mutableClasses = mutableClasses.map((item) =>
       item.classId !== classId
         ? item
-        : { ...item, students: item.students.map((student) => student.id === studentId ? { ...student, status } : student) },
+        : { ...item, students: item.students.map((student) => student.id === studentId ? {
+          ...student,
+          status,
+          verification: status === "present" ? "Verified" : status === "late" ? "Needs review" : "Not available",
+        } : student) },
     );
     const updated = mutableClasses.find((item) => item.classId === classId);
     if (!updated) throw new Error("Could not save this attendance update.");
